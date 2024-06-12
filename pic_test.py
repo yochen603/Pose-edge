@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     template_path = "./template3.jpg"
     # Set the threshold for acceptable alignment ratio
-    threshold = 0.5
+    threshold = 0.2
 
     # Set the path to the input picture
     input_picture_path = "./test3.jpg"
