@@ -30,11 +30,19 @@ def align_body_part(template, camera_image, seg_model):
         # Check if any objects are detected in the ROI
         if len(roi_results) > 0 and roi_results[0].masks is not None:
             # Get the class labels and masks of the detected objects
+            class_labels = roi_results[0].boxes.cls.cpu().numpy()
             masks = roi_results[0].masks.data
 
             # Resize the mask to match the size of the contour
             mask = masks[0].cpu().numpy()
             mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+            mask_contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            #detour similarity
+            template_moments = cv2.HuMoments(cv2.moments(contour)).flatten()
+            mask_moments = cv2.HuMoments(cv2.moments(mask_contours[0])).flatten()
+            similarity = cv2.matchShapes(template_moments, mask_moments, cv2.CONTOURS_MATCH_I1, 0)
+            print("similarity:",similarity)
 
             # Calculate the ratio of the masked area to the contour area
             contour_area = cv2.contourArea(contour)
@@ -44,7 +52,7 @@ def align_body_part(template, camera_image, seg_model):
             mask_ratio = mask_area / contour_area
             print("mask_ratio", mask_ratio)
             # Update the alignment ratio and area color if a better alignment is found
-            if mask_ratio > threshold:
+            if mask_ratio > threshold and 0 in class_labels and similarity > 85:
                 area_color = (0, 255, 0)  # Green color for aligned body part
                 answer = True
 
@@ -71,7 +79,7 @@ if __name__ == '__main__':
 
     template_path = "./template3.jpg"
     # Set the threshold for acceptable alignment ratio
-    threshold = 0.2
+    threshold = 0.8
 
     # Set the path to the input picture
     input_picture_path = "./test3.jpg"
