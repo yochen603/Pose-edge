@@ -30,26 +30,23 @@ def align_body_part(template, camera_image, seg_model):
         # Check if any objects are detected in the ROI
         if len(roi_results) > 0 and roi_results[0].masks is not None:
             # Get the class labels and masks of the detected objects
-            #class_labels = roi_results[0].boxes.cls
             masks = roi_results[0].masks.data
-            # Calculate the ratio of the masked area to the total ROI area
-            mask_ratio = np.sum(masks.cpu().numpy()) / (cv2.contourArea(contour))
-            print(np.sum(masks.cpu().numpy()) )
-            print("area of contour", cv2.contourArea(contour))
+
+            # Resize the mask to match the size of the contour
+            mask = masks[0].cpu().numpy()
+            mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+
+            # Calculate the ratio of the masked area to the contour area
+            contour_area = cv2.contourArea(contour)
+            mask_area = np.sum(mask)
+            print("mask_area", mask_area)
+            print("contour_area", contour_area)
+            mask_ratio = mask_area / contour_area
+            print("mask_ratio", mask_ratio)
             # Update the alignment ratio and area color if a better alignment is found
-            #if mask_ratio > alignment_ratio:
-            #    alignment_ratio = mask_ratio
-            #    if alignment_ratio > threshold:
-            #        area_color = (0, 255, 0)  # Green color for aligned body part
-            #        answer = True
-            print("mask_ratio:", mask_ratio)
             if mask_ratio > threshold:
                 area_color = (0, 255, 0)  # Green color for aligned body part
                 answer = True
-
-            # Resize the mask to match the size of the ROI image
-            mask = masks[0].cpu().numpy()
-            mask = cv2.resize(mask, (w, h))
 
             # Create a mask image with light grey color
             mask_image_roi = np.zeros_like(roi)
