@@ -1,7 +1,13 @@
+from flask import Flask, request, jsonify, send_file
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import base64
+import io
+import os
+import requests
 
+app = Flask(__name__)
 
 def align_body_part(template, camera_image, seg_model):
     template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
@@ -72,31 +78,66 @@ def align_body_part(template, camera_image, seg_model):
 
     return combined_image,answer
 
+@app.route('/pose', methods=['POST'])
+def handle_pose_request():
+    data = request.get_json()  # 获取 JSON 数据
+    if 'url' not in data:
+        return jsonify({'error': 'URL parameter missing'}), 400
+    url = data['url']  # 从 JSON 数据中获取 URL
+    filename = url.split('/')[-1]
+    os.makedirs('temp', exist_ok=True)
+    input_picture_path = os.path.join('temp', filename)
 
-if __name__ == '__main__':
-    # Set the path to the template image
+    if 'model' in data:
+        model = data['model']  # 从 JSON 数据中获取 model
+        modelname = model.split('/')[-1]
+    else:
+        modelname = 'template3.jpg'
+
+    os.makedirs('model', exist_ok=True)
+    template_path = os.path.join('model', modelname)
+
+    # 下载图片
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(input_picture_path, 'wb') as f:
+            f.write(response.content)
+    else:
+        return jsonify({'error': 'Failed to download image'}), 404
+
+    if 'model' in data:
+        response2 = requests.get(model)
+        if response2.status_code == 200:
+            with open(template_path, 'wb') as f:
+                f.write(response2.content)
+        else:
+            return jsonify({'error': 'Failed to download image'}), 404
+
+
+    # Load the segmentation model
     seg_model = YOLO("yolov8n-seg.pt")
-
-    template_path = "model/template3.jpg"
-    # Set the threshold for acceptable alignment ratio
-    threshold = 0.8
-
-    # Set the path to the input picture
-    # input_picture_path = "./test3.jpg"
-    input_picture_path = "temp/zhaopian1.png"
-
+    
     # Read the input picture
     input_picture = cv2.imread(input_picture_path)
     input_picture = cv2.resize(input_picture, (582, 1280))
     print("输入图片的大小",input_picture.shape)
+    if input_picture is None:
+        return jsonify({'error': 'Failed to load input picture'}), 400
+
     # Read the template image and resize it to match the input picture size
     template = cv2.imread(template_path)
+    if template is None:
+        return jsonify({'error': 'Failed to load template'}), 400
+
+    # Resize template to match camera image size
     template_resized = cv2.resize(template, (input_picture.shape[1], input_picture.shape[0]))
     print("输入模板的大小",template_resized.shape)
-    # Align the body part in the input picture
+    # Perform alignment
     aligned_image, answer = align_body_part(template_resized, input_picture, seg_model)
     print("answer",answer)
-    # Display the aligned image
-    cv2.imshow("Aligned Image", aligned_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    return jsonify({'alignment_status': answer})
+
+if __name__ == '__main__':
+    threshold = 0.8
+    app.run(host='0.0.0.0', port=5100, debug=True)
+
